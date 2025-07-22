@@ -267,3 +267,641 @@
         <div id="reconciliation-hub-sheet" class="tab-content hidden">
             <h2 class="text-2xl font-semibold mb-4 text-gray-700">訂單核對中心</h2>
             <div class="info-box">
+                <p class="text-sm">
+                    此處將自動比對「客戶訂單」與「內部訂單/出貨 PO」數據，並標記差異。
+                    您可以點擊「執行核對」按鈕開始比對。
+                </p>
+                <button class="btn-primary mt-2" onclick="performReconciliation()">執行核對</button>
+                <button class="btn-secondary mt-2 ml-2" onclick="clearReconciliationData()">清除核對數據</button>
+            </div>
+            <div class="loading-indicator hidden" id="reconciliation-loading">
+                <svg class="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>正在執行核對，請稍候...</span>
+            </div>
+            <div class="table-container mt-4">
+                <table id="reconciliation-table" class="min-w-full bg-white">
+                    <thead>
+                        <tr>
+                            <th>客戶 PO 編號</th>
+                            <th>產品型號 (客戶用)</th>
+                            <th>客戶訂購數量</th>
+                            <th>內部確認數量</th>
+                            <th>數量差異</th>
+                            <th>客戶期望交期</th>
+                            <th>承諾交期</th>
+                            <th>交期差異</th>
+                            <th>狀態</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Reconciliation results will be inserted here by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 問題追蹤日誌 Tab -->
+        <div id="issue-log-sheet" class="tab-content hidden">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">問題追蹤日誌</h2>
+            <div class="info-box">
+                <p class="text-sm">
+                    此日誌記錄了核對過程中發現的所有問題。您可以追蹤問題的狀態並添加備註。
+                </p>
+            </div>
+            <div class="table-container">
+                <table id="issue-log-table" class="min-w-full bg-white">
+                    <thead>
+                        <tr>
+                            <th>問題 ID</th>
+                            <th>客戶 PO 編號</th>
+                            <th>產品型號</th>
+                            <th>問題類型</th>
+                            <th>描述</th>
+                            <th>狀態</th>
+                            <th>備註</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Issue log data will be inserted here by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 設定 Tab -->
+        <div id="settings-sheet" class="tab-content hidden">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">設定</h2>
+            <div class="info-box">
+                <p class="text-sm">
+                    此處可配置核對規則、數據導入/導出選項等。
+                </p>
+            </div>
+            <div class="p-4 bg-gray-50 rounded-lg shadow-inner">
+                <h3 class="text-xl font-semibold mb-3 text-gray-700">核對規則</h3>
+                <div class="mb-4">
+                    <label for="quantity-tolerance" class="block text-gray-700 text-sm font-bold mb-2">數量差異容忍度 (%):</label>
+                    <input type="number" id="quantity-tolerance" value="0" min="0" max="100" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                </div>
+                <div class="mb-4">
+                    <label for="delivery-date-tolerance" class="block text-gray-700 text-sm font-bold mb-2">交期差異容忍天數:</label>
+                    <input type="number" id="delivery-date-tolerance" value="0" min="0" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                </div>
+                <button class="btn-primary" onclick="saveSettings()">儲存設定</button>
+            </div>
+        </div>
+
+        <!-- 通用訊息 Modal -->
+        <div id="message-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close-button" onclick="closeModal('message-modal')">&times;</span>
+                <h3 id="modal-title" class="text-xl font-bold mb-4"></h3>
+                <p id="modal-message" class="mb-4"></p>
+                <div class="flex justify-end">
+                    <button class="btn-primary" onclick="closeModal('message-modal')">確定</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- SheetJS CDN for Excel file parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+
+    <script>
+        // Global data storage
+        let clientOrders = [];
+        let internalOrders = [];
+        let reconciliationResults = [];
+        let issueLog = [];
+        let settings = {
+            quantityTolerance: 0, // Percentage
+            deliveryDateTolerance: 0 // Days
+        };
+
+        // Initialize settings from localStorage if available
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSettings();
+            switchTab('client-orders-sheet'); // Default to client orders tab on load
+        });
+
+        /**
+         * Switches between different tabs in the application.
+         * @param {string} tabId - The ID of the tab to activate.
+         */
+        function switchTab(tabId) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+
+            // Deactivate all tab buttons
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+                button.classList.add('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+                button.classList.remove('bg-blue-100', 'text-blue-800', 'border-blue-300');
+            });
+
+            // Show the selected tab content
+            document.getElementById(tabId).classList.remove('hidden');
+
+            // Activate the corresponding tab button
+            const activeTabButton = document.querySelector(`.tab-button[onclick="switchTab('${tabId}')"]`);
+            if (activeTabButton) {
+                activeTabButton.classList.add('active');
+                activeTabButton.classList.remove('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+                activeTabButton.classList.add('bg-blue-100', 'text-blue-800', 'border-blue-300');
+            }
+
+            // If switching to reconciliation hub, ensure data is displayed
+            if (tabId === 'reconciliation-hub-sheet') {
+                displayReconciliationResults();
+            } else if (tabId === 'issue-log-sheet') {
+                displayIssueLog();
+            } else if (tabId === 'settings-sheet') {
+                loadSettingsToUI();
+            }
+        }
+
+        /**
+         * Displays a custom modal message.
+         * @param {string} title - The title of the modal.
+         * @param {string} message - The message content.
+         */
+        function showMessageModal(title, message) {
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-message').innerText = message;
+            document.getElementById('message-modal').classList.remove('hidden');
+        }
+
+        /**
+         * Closes a specified modal.
+         * @param {string} modalId - The ID of the modal to close.
+         */
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+
+        /**
+         * Loads data from an uploaded Excel file.
+         * @param {Event} event - The file input change event.
+         * @param {string} type - 'client' or 'internal' to specify which data array to populate.
+         */
+        function loadDataFromFile(event, type) {
+            const file = event.target.files[0];
+            if (!file) {
+                showMessageModal('載入失敗', '請選擇一個檔案。');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet);
+
+                    if (type === 'client') {
+                        clientOrders = json.map(row => ({
+                            customerPO: String(row['客戶 PO 編號'] || '').trim(),
+                            customerName: String(row['客戶名稱'] || '').trim(),
+                            productModel: String(row['產品型號 (客戶用)'] || '').trim(),
+                            orderedQuantity: parseInt(row['客戶訂購數量'] || 0),
+                            expectedDeliveryDate: String(row['客戶期望交期'] || '').trim()
+                        }));
+                        displayClientOrders();
+                        showMessageModal('載入成功', '客戶訂單數據已成功載入。');
+                    } else if (type === 'internal') {
+                        internalOrders = json.map(row => ({
+                            internalOrderID: String(row['內部訂單 ID'] || '').trim(),
+                            customerPO: String(row['客戶 PO 編號'] || '').trim(),
+                            internalProductCode: String(row['產品內部代碼'] || '').trim(),
+                            confirmedQuantity: parseInt(row['內部確認數量'] || 0),
+                            committedDeliveryDate: String(row['承諾交期'] || '').trim()
+                        }));
+                        displayInternalOrders();
+                        showMessageModal('載入成功', '內部訂單數據已成功載入。');
+                    }
+                } catch (error) {
+                    console.error('Error reading Excel file:', error);
+                    showMessageModal('載入錯誤', '讀取 Excel 檔案時發生錯誤。請確保檔案格式正確。');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Attach event listeners to file inputs
+        document.getElementById('client-file-input').addEventListener('change', (event) => loadDataFromFile(event, 'client'));
+        document.getElementById('internal-file-input').addEventListener('change', (event) => loadDataFromFile(event, 'internal'));
+
+        /**
+         * Helper function to trigger file input click.
+         * @param {string} inputId - The ID of the file input.
+         */
+        function triggerFileInput(inputId) {
+            document.getElementById(inputId).click();
+        }
+
+        /**
+         * Loads client data from file input.
+         */
+        function loadClientDataFromFile() {
+            triggerFileInput('client-file-input');
+        }
+
+        /**
+         * Loads internal data from file input.
+         */
+        function loadInternalDataFromFile() {
+            triggerFileInput('internal-file-input');
+        }
+
+        /**
+         * Displays client orders in the table.
+         */
+        function displayClientOrders() {
+            const tbody = document.getElementById('client-orders-table').querySelector('tbody');
+            tbody.innerHTML = ''; // Clear existing rows
+
+            if (clientOrders.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-gray-500 py-4">沒有客戶訂單數據。</td></tr>';
+                return;
+            }
+
+            clientOrders.forEach(order => {
+                const row = tbody.insertRow();
+                row.insertCell().innerText = order.customerPO;
+                row.insertCell().innerText = order.customerName;
+                row.insertCell().innerText = order.productModel;
+                row.insertCell().innerText = order.orderedQuantity;
+                row.insertCell().innerText = order.expectedDeliveryDate;
+            });
+        }
+
+        /**
+         * Displays internal orders in the table.
+         */
+        function displayInternalOrders() {
+            const tbody = document.getElementById('internal-orders-table').querySelector('tbody');
+            tbody.innerHTML = ''; // Clear existing rows
+
+            if (internalOrders.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-gray-500 py-4">沒有內部訂單數據。</td></tr>';
+                return;
+            }
+
+            internalOrders.forEach(order => {
+                const row = tbody.insertRow();
+                row.insertCell().innerText = order.internalOrderID;
+                row.insertCell().innerText = order.customerPO;
+                row.insertCell().innerText = order.internalProductCode;
+                row.insertCell().innerText = order.confirmedQuantity;
+                row.insertCell().innerText = order.committedDeliveryDate;
+            });
+        }
+
+        /**
+         * Performs the reconciliation between client and internal orders.
+         */
+        async function performReconciliation() {
+            if (clientOrders.length === 0 || internalOrders.length === 0) {
+                showMessageModal('核對失敗', '請先載入客戶訂單和內部訂單數據。');
+                return;
+            }
+
+            document.getElementById('reconciliation-loading').classList.remove('hidden');
+            reconciliationResults = [];
+            issueLog = [];
+
+            // Simulate a delay for processing
+            await new Promise(resolve => setTimeout(resolve, 1500));
+
+            clientOrders.forEach(clientOrder => {
+                const matchingInternalOrders = internalOrders.filter(internalOrder =>
+                    internalOrder.customerPO === clientOrder.customerPO &&
+                    internalOrder.internalProductCode === clientOrder.productModel // Assuming productModel in client order maps to internalProductCode
+                );
+
+                if (matchingInternalOrders.length === 0) {
+                    // No matching internal order found for this client order
+                    reconciliationResults.push({
+                        customerPO: clientOrder.customerPO,
+                        productModel: clientOrder.productModel,
+                        clientOrderedQuantity: clientOrder.orderedQuantity,
+                        internalConfirmedQuantity: 'N/A',
+                        quantityDifference: 'N/A',
+                        clientExpectedDeliveryDate: clientOrder.expectedDeliveryDate,
+                        internalCommittedDeliveryDate: 'N/A',
+                        deliveryDateDifference: 'N/A',
+                        status: '無內部匹配',
+                        isDiscrepancy: true,
+                        isResolved: false
+                    });
+                    issueLog.push({
+                        id: `ISSUE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                        customerPO: clientOrder.customerPO,
+                        productModel: clientOrder.productModel,
+                        type: '無內部匹配',
+                        description: `客戶 PO 編號 ${clientOrder.customerPO} 的產品 ${clientOrder.productModel} 沒有找到匹配的內部訂單。`,
+                        status: '待處理',
+                        notes: ''
+                    });
+                    return;
+                }
+
+                matchingInternalOrders.forEach(internalOrder => {
+                    let quantityMatch = true;
+                    let deliveryDateMatch = true;
+                    let status = '匹配';
+                    let isDiscrepancy = false;
+
+                    // Quantity comparison
+                    const quantityDiff = clientOrder.orderedQuantity - internalOrder.confirmedQuantity;
+                    const quantityTolerance = settings.quantityTolerance / 100; // Convert percentage to decimal
+                    if (Math.abs(quantityDiff) > (clientOrder.orderedQuantity * quantityTolerance)) {
+                        quantityMatch = false;
+                        isDiscrepancy = true;
+                        status = '數量不符';
+                        issueLog.push({
+                            id: `ISSUE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                            customerPO: clientOrder.customerPO,
+                            productModel: clientOrder.productModel,
+                            type: '數量差異',
+                            description: `客戶訂購數量 (${clientOrder.orderedQuantity}) 與內部確認數量 (${internalOrder.confirmedQuantity}) 不符，差異為 ${quantityDiff}。`,
+                            status: '待處理',
+                            notes: ''
+                        });
+                    }
+
+                    // Delivery Date comparison
+                    const clientDate = new Date(clientOrder.expectedDeliveryDate);
+                    const internalDate = new Date(internalOrder.committedDeliveryDate);
+                    const diffTime = Math.abs(clientDate - internalDate);
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                    if (isNaN(clientDate.getTime()) || isNaN(internalDate.getTime())) {
+                        // Handle invalid date formats
+                        deliveryDateMatch = false;
+                        isDiscrepancy = true;
+                        if (status === '匹配') status = '交期格式錯誤';
+                        else status += ', 交期格式錯誤';
+                        issueLog.push({
+                            id: `ISSUE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                            customerPO: clientOrder.customerPO,
+                            productModel: clientOrder.productModel,
+                            type: '交期格式錯誤',
+                            description: `客戶期望交期 (${clientOrder.expectedDeliveryDate}) 或承諾交期 (${internalOrder.committedDeliveryDate}) 格式無效。`,
+                            status: '待處理',
+                            notes: ''
+                        });
+                    } else if (diffDays > settings.deliveryDateTolerance) {
+                        deliveryDateMatch = false;
+                        isDiscrecancy = true;
+                        if (status === '匹配') status = '交期不符';
+                        else status += ', 交期不符';
+                        issueLog.push({
+                            id: `ISSUE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                            customerPO: clientOrder.customerPO,
+                            productModel: clientOrder.productModel,
+                            type: '交期差異',
+                            description: `客戶期望交期 (${clientOrder.expectedDeliveryDate}) 與承諾交期 (${internalOrder.committedDeliveryDate}) 差異 ${diffDays} 天，超出容忍度。`,
+                            status: '待處理',
+                            notes: ''
+                        });
+                    }
+
+                    reconciliationResults.push({
+                        customerPO: clientOrder.customerPO,
+                        productModel: clientOrder.productModel,
+                        clientOrderedQuantity: clientOrder.orderedQuantity,
+                        internalConfirmedQuantity: internalOrder.confirmedQuantity,
+                        quantityDifference: quantityDiff,
+                        clientExpectedDeliveryDate: clientOrder.expectedDeliveryDate,
+                        internalCommittedDeliveryDate: internalOrder.committedDeliveryDate,
+                        deliveryDateDifference: isNaN(clientDate.getTime()) || isNaN(internalDate.getTime()) ? 'N/A' : diffDays,
+                        status: status,
+                        isDiscrepancy: isDiscrepancy,
+                        isResolved: false // Default to not resolved
+                    });
+                });
+            });
+
+            document.getElementById('reconciliation-loading').classList.add('hidden');
+            displayReconciliationResults();
+            displayIssueLog(); // Update issue log after reconciliation
+            showMessageModal('核對完成', '訂單核對已完成。請查看核對中心和問題追蹤日誌。');
+        }
+
+        /**
+         * Displays reconciliation results in the table.
+         */
+        function displayReconciliationResults() {
+            const tbody = document.getElementById('reconciliation-table').querySelector('tbody');
+            tbody.innerHTML = ''; // Clear existing rows
+
+            if (reconciliationResults.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="10" class="text-center text-gray-500 py-4">沒有核對結果。請先執行核對。</td></tr>';
+                return;
+            }
+
+            reconciliationResults.forEach((result, index) => {
+                const row = tbody.insertRow();
+                if (result.isDiscrepancy) {
+                    row.classList.add('discrepancy-row');
+                }
+                if (result.isResolved) {
+                    row.classList.remove('discrepancy-row'); // Remove discrepancy if resolved
+                    row.classList.add('resolved-row');
+                }
+
+                row.insertCell().innerText = result.customerPO;
+                row.insertCell().innerText = result.productModel;
+                row.insertCell().innerText = result.clientOrderedQuantity;
+                row.insertCell().innerText = result.internalConfirmedQuantity;
+                const quantityDiffCell = row.insertCell();
+                quantityDiffCell.innerText = result.quantityDifference;
+                if (result.isDiscrepancy && result.quantityDifference !== 'N/A' && result.quantityDifference !== 0) {
+                    quantityDiffCell.classList.add('discrepancy-cell');
+                }
+
+                row.insertCell().innerText = result.clientExpectedDeliveryDate;
+                row.insertCell().innerText = result.internalCommittedDeliveryDate;
+                const deliveryDiffCell = row.insertCell();
+                deliveryDiffCell.innerText = result.deliveryDateDifference;
+                if (result.isDiscrepancy && result.deliveryDateDifference !== 'N/A' && result.deliveryDateDifference !== 0) {
+                    deliveryDiffCell.classList.add('discrepancy-cell');
+                }
+
+                row.insertCell().innerText = result.status;
+
+                const actionCell = row.insertCell();
+                if (result.isDiscrepancy && !result.isResolved) {
+                    const resolveButton = document.createElement('button');
+                    resolveButton.innerText = '標記為已解決';
+                    resolveButton.classList.add('btn-secondary', 'text-xs', 'py-1', 'px-2');
+                    resolveButton.onclick = () => markReconciliationAsResolved(index);
+                    actionCell.appendChild(resolveButton);
+                } else if (result.isResolved) {
+                    actionCell.innerText = '已解決';
+                    actionCell.classList.add('text-green-600', 'font-semibold');
+                }
+            });
+        }
+
+        /**
+         * Marks a reconciliation result as resolved.
+         * @param {number} index - The index of the reconciliation result in the array.
+         */
+        function markReconciliationAsResolved(index) {
+            if (reconciliationResults[index]) {
+                reconciliationResults[index].isResolved = true;
+                // Also mark the corresponding issue in the log as resolved
+                const relatedIssue = issueLog.find(issue =>
+                    issue.customerPO === reconciliationResults[index].customerPO &&
+                    issue.productModel === reconciliationResults[index].productModel &&
+                    issue.status === '待處理'
+                );
+                if (relatedIssue) {
+                    relatedIssue.status = '已解決';
+                    relatedIssue.notes += (relatedIssue.notes ? '; ' : '') + '已在核對中心標記為已解決。';
+                }
+                displayReconciliationResults();
+                displayIssueLog();
+                showMessageModal('狀態更新', '核對項目已標記為已解決。');
+            }
+        }
+
+        /**
+         * Clears all reconciliation results.
+         */
+        function clearReconciliationData() {
+            reconciliationResults = [];
+            displayReconciliationResults();
+            showMessageModal('清除完成', '核對數據已清除。');
+        }
+
+        /**
+         * Displays the issue log in the table.
+         */
+        function displayIssueLog() {
+            const tbody = document.getElementById('issue-log-table').querySelector('tbody');
+            tbody.innerHTML = ''; // Clear existing rows
+
+            if (issueLog.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-gray-500 py-4">沒有問題記錄。</td></tr>';
+                return;
+            }
+
+            issueLog.forEach((issue, index) => {
+                const row = tbody.insertRow();
+                if (issue.status === '待處理') {
+                    row.classList.add('discrepancy-row');
+                } else if (issue.status === '已解決') {
+                    row.classList.add('resolved-row');
+                }
+
+                row.insertCell().innerText = issue.id;
+                row.insertCell().innerText = issue.customerPO;
+                row.insertCell().innerText = issue.productModel;
+                row.insertCell().innerText = issue.type;
+                row.insertCell().innerText = issue.description;
+                row.insertCell().innerText = issue.status;
+
+                const notesCell = row.insertCell();
+                const notesInput = document.createElement('input');
+                notesInput.type = 'text';
+                notesInput.value = issue.notes;
+                notesInput.classList.add('w-full', 'p-1', 'border', 'rounded-md', 'text-sm');
+                notesInput.onchange = (e) => {
+                    issue.notes = e.target.value;
+                    saveIssueLog(); // Save notes immediately
+                };
+                notesCell.appendChild(notesInput);
+
+                const actionCell = row.insertCell();
+                if (issue.status === '待處理') {
+                    const resolveButton = document.createElement('button');
+                    resolveButton.innerText = '標記為已解決';
+                    resolveButton.classList.add('btn-secondary', 'text-xs', 'py-1', 'px-2');
+                    resolveButton.onclick = () => markIssueAsResolved(index);
+                    actionCell.appendChild(resolveButton);
+                } else if (issue.status === '已解決') {
+                    actionCell.innerText = '已解決';
+                    actionCell.classList.add('text-green-600', 'font-semibold');
+                }
+            });
+        }
+
+        /**
+         * Marks an issue in the log as resolved.
+         * @param {number} index - The index of the issue in the array.
+         */
+        function markIssueAsResolved(index) {
+            if (issueLog[index]) {
+                issueLog[index].status = '已解決';
+                issueLog[index].notes += (issueLog[index].notes ? '; ' : '') + '已手動標記為已解決。';
+                // Find and mark corresponding reconciliation result as resolved
+                const relatedReconciliation = reconciliationResults.find(result =>
+                    result.customerPO === issueLog[index].customerPO &&
+                    result.productModel === issueLog[index].productModel &&
+                    result.isDiscrepancy && !result.isResolved
+                );
+                if (relatedReconciliation) {
+                    relatedReconciliation.isResolved = true;
+                }
+                displayIssueLog();
+                displayReconciliationResults(); // Refresh reconciliation table to show resolved status
+                showMessageModal('狀態更新', '問題已標記為已解決。');
+                saveIssueLog(); // Save changes to localStorage
+            }
+        }
+
+        /**
+         * Saves the issue log to localStorage.
+         */
+        function saveIssueLog() {
+            localStorage.setItem('issueLog', JSON.stringify(issueLog));
+        }
+
+        /**
+         * Loads settings from localStorage and applies them.
+         */
+        function loadSettings() {
+            const savedSettings = localStorage.getItem('settings');
+            if (savedSettings) {
+                settings = JSON.parse(savedSettings);
+            }
+        }
+
+        /**
+         * Loads current settings into the UI fields.
+         */
+        function loadSettingsToUI() {
+            document.getElementById('quantity-tolerance').value = settings.quantityTolerance;
+            document.getElementById('delivery-date-tolerance').value = settings.deliveryDateTolerance;
+        }
+
+        /**
+         * Saves settings from UI fields to localStorage.
+         */
+        function saveSettings() {
+            settings.quantityTolerance = parseInt(document.getElementById('quantity-tolerance').value);
+            settings.deliveryDateTolerance = parseInt(document.getElementById('delivery-date-tolerance').value);
+            localStorage.setItem('settings', JSON.stringify(settings));
+            showMessageModal('設定已儲存', '您的設定已成功儲存。');
+        }
+
+        // Initial display of empty tables
+        displayClientOrders();
+        displayInternalOrders();
+        displayReconciliationResults();
+        displayIssueLog(); // Load and display issue log on startup if any
+    </script>
+</body>
+</html>
