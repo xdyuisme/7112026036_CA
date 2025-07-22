@@ -341,7 +341,7 @@
                     此處可配置核對規則、數據導入/導出選項等。
                 </p>
             </div>
-            <div class="p-4 bg-gray-50 rounded-lg shadow-inner">
+            <div class="p-4 bg-gray-50 rounded-lg shadow-inner mb-6">
                 <h3 class="text-xl font-semibold mb-3 text-gray-700">核對規則</h3>
                 <div class="mb-4">
                     <label for="quantity-tolerance" class="block text-gray-700 text-sm font-bold mb-2">數量差異容忍度 (%):</label>
@@ -350,6 +350,63 @@
                 <div class="mb-4">
                     <label for="delivery-date-tolerance" class="block text-gray-700 text-sm font-bold mb-2">交期差異容忍天數:</label>
                     <input type="number" id="delivery-date-tolerance" value="0" min="0" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                </div>
+            </div>
+
+            <div class="p-4 bg-gray-50 rounded-lg shadow-inner">
+                <h3 class="text-xl font-semibold mb-3 text-gray-700">欄位名稱對應 (上傳檔案)</h3>
+                <p class="text-sm text-gray-600 mb-4">
+                    請輸入您上傳的 Excel 檔案中對應的欄位名稱。如果留空，將使用預設名稱。
+                </p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <h4 class="font-semibold text-gray-700 mb-2">客戶訂單欄位對應</h4>
+                        <div class="mb-2">
+                            <label for="map-client-customerPO" class="block text-gray-700 text-xs font-bold mb-1">客戶 PO 編號 (內部: customerPO):</label>
+                            <input type="text" id="map-client-customerPO" class="shadow appearance-none border rounded w-full py-1 px-2 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        </div>
+                        <div class="mb-2">
+                            <label for="map-client-customerName" class="block text-gray-700 text-xs font-bold mb-1">客戶名稱 (內部: customerName):</label>
+                            <input type="text" id="map-client-customerName" class="shadow appearance-none border rounded w-full py-1 px-2 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        </div>
+                        <div class="mb-2">
+                            <label for="map-client-productModel" class="block text-gray-700 text-xs font-bold mb-1">產品型號 (客戶用) (內部: productModel):</label>
+                            <input type="text" id="map-client-productModel" class="shadow appearance-none border rounded w-full py-1 px-2 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        </div>
+                        <div class="mb-2">
+                            <label for="map-client-orderedQuantity" class="block text-gray-700 text-xs font-bold mb-1">客戶訂購數量 (內部: orderedQuantity):</label>
+                            <input type="text" id="map-client-orderedQuantity" class="shadow appearance-none border rounded w-full py-1 px-2 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        </div>
+                        <div class="mb-2">
+                            <label for="map-client-expectedDeliveryDate" class="block text-gray-700 text-xs font-bold mb-1">客戶期望交期 (內部: expectedDeliveryDate):</label>
+                            <input type="text" id="map-client-expectedDeliveryDate" class="shadow appearance-none border rounded w-full py-1 px-2 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 class="font-semibold text-gray-700 mb-2">內部訂單欄位對應</h4>
+                        <div class="mb-2">
+                            <label for="map-internal-internalOrderID" class="block text-gray-700 text-xs font-bold mb-1">內部訂單 ID (內部: internalOrderID):</label>
+                            <input type="text" id="map-internal-internalOrderID" class="shadow appearance-none border rounded w-full py-1 px-2 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        </div>
+                        <div class="mb-2">
+                            <label for="map-internal-customerPO" class="block text-gray-700 text-xs font-bold mb-1">客戶 PO 編號 (內部: customerPO):</label>
+                            <input type="text" id="map-internal-customerPO" class="shadow appearance-none border rounded w-full py-1 px-2 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        </div>
+                        <div class="mb-2">
+                            <label for="map-internal-internalProductCode" class="block text-gray-700 text-xs font-bold mb-1">產品內部代碼 (內部: internalProductCode):</label>
+                            <input type="text" id="map-internal-internalProductCode" class="shadow appearance-none border rounded w-full py-1 px-2 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        </div>
+                        <div class="mb-2">
+                            <label for="map-internal-confirmedQuantity" class="block text-gray-700 text-xs font-bold mb-1">內部確認數量 (內部: confirmedQuantity):</label>
+                            <input type="text" id="map-internal-confirmedQuantity" class="shadow appearance-none border rounded w-full py-1 px-2 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        </div>
+                        <div class="mb-2">
+                            <label for="map-internal-committedDeliveryDate" class="block text-gray-700 text-xs font-bold mb-1">承諾交期 (內部: committedDeliveryDate):</label>
+                            <input type="text" id="map-internal-committedDeliveryDate" class="shadow appearance-none border rounded w-full py-1 px-2 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        </div>
+                    </div>
                 </div>
                 <button class="btn-primary" onclick="saveSettings()">儲存設定</button>
             </div>
@@ -380,7 +437,23 @@
         let issueLog = [];
         let settings = {
             quantityTolerance: 0, // Percentage
-            deliveryDateTolerance: 0 // Days
+            deliveryDateTolerance: 0, // Days
+            // Default column mappings for client orders
+            clientColumnMap: {
+                customerPO: '客戶 PO 編號',
+                customerName: '客戶名稱',
+                productModel: '產品型號 (客戶用)',
+                orderedQuantity: '客戶訂購數量',
+                expectedDeliveryDate: '客戶期望交期'
+            },
+            // Default column mappings for internal orders
+            internalColumnMap: {
+                internalOrderID: '內部訂單 ID',
+                customerPO: '客戶 PO 編號',
+                internalProductCode: '產品內部代碼',
+                confirmedQuantity: '內部確認數量',
+                committedDeliveryDate: '承諾交期'
+            }
         };
 
         // Initialize settings from localStorage if available
@@ -447,6 +520,21 @@
         }
 
         /**
+         * Helper function to get a value from a row using a mapped column name,
+         * falling back to a default if the mapped name is empty or not found.
+         * @param {object} row - The data row from the Excel file.
+         * @param {string} mappedColumnName - The column name from the settings map.
+         * @param {string} defaultColumnName - The hardcoded default column name.
+         * @returns {string|number} The value from the row.
+         */
+        function getMappedValue(row, mappedColumnName, defaultColumnName) {
+            if (mappedColumnName && row[mappedColumnName] !== undefined) {
+                return row[mappedColumnName];
+            }
+            return row[defaultColumnName];
+        }
+
+        /**
          * Loads data from an uploaded Excel file.
          * @param {Event} event - The file input change event.
          * @param {string} type - 'client' or 'internal' to specify which data array to populate.
@@ -469,28 +557,28 @@
 
                     if (type === 'client') {
                         clientOrders = json.map(row => ({
-                            customerPO: String(row['客戶 PO 編號'] || '').trim(),
-                            customerName: String(row['客戶名稱'] || '').trim(),
-                            productModel: String(row['產品型號 (客戶用)'] || '').trim(),
-                            orderedQuantity: parseInt(row['客戶訂購數量'] || 0),
-                            expectedDeliveryDate: String(row['客戶期望交期'] || '').trim()
+                            customerPO: String(getMappedValue(row, settings.clientColumnMap.customerPO, '客戶 PO 編號') || '').trim(),
+                            customerName: String(getMappedValue(row, settings.clientColumnMap.customerName, '客戶名稱') || '').trim(),
+                            productModel: String(getMappedValue(row, settings.clientColumnMap.productModel, '產品型號 (客戶用)') || '').trim(),
+                            orderedQuantity: parseInt(getMappedValue(row, settings.clientColumnMap.orderedQuantity, '客戶訂購數量') || 0),
+                            expectedDeliveryDate: String(getMappedValue(row, settings.clientColumnMap.expectedDeliveryDate, '客戶期望交期') || '').trim()
                         }));
                         displayClientOrders();
                         showMessageModal('載入成功', '客戶訂單數據已成功載入。');
                     } else if (type === 'internal') {
                         internalOrders = json.map(row => ({
-                            internalOrderID: String(row['內部訂單 ID'] || '').trim(),
-                            customerPO: String(row['客戶 PO 編號'] || '').trim(),
-                            internalProductCode: String(row['產品內部代碼'] || '').trim(),
-                            confirmedQuantity: parseInt(row['內部確認數量'] || 0),
-                            committedDeliveryDate: String(row['承諾交期'] || '').trim()
+                            internalOrderID: String(getMappedValue(row, settings.internalColumnMap.internalOrderID, '內部訂單 ID') || '').trim(),
+                            customerPO: String(getMappedValue(row, settings.internalColumnMap.customerPO, '客戶 PO 編號') || '').trim(),
+                            internalProductCode: String(getMappedValue(row, settings.internalColumnMap.internalProductCode, '產品內部代碼') || '').trim(),
+                            confirmedQuantity: parseInt(getMappedValue(row, settings.internalColumnMap.confirmedQuantity, '內部確認數量') || 0),
+                            committedDeliveryDate: String(getMappedValue(row, settings.internalColumnMap.committedDeliveryDate, '承諾交期') || '').trim()
                         }));
                         displayInternalOrders();
                         showMessageModal('載入成功', '內部訂單數據已成功載入。');
                     }
                 } catch (error) {
                     console.error('Error reading Excel file:', error);
-                    showMessageModal('載入錯誤', '讀取 Excel 檔案時發生錯誤。請確保檔案格式正確。');
+                    showMessageModal('載入錯誤', '讀取 Excel 檔案時發生錯誤。請確保檔案格式正確，且欄位名稱與設定相符。');
                 }
             };
             reader.readAsArrayBuffer(file);
@@ -662,7 +750,7 @@
                         });
                     } else if (diffDays > settings.deliveryDateTolerance) {
                         deliveryDateMatch = false;
-                        isDiscrecancy = true;
+                        isDiscrepancy = true;
                         if (status === '匹配') status = '交期不符';
                         else status += ', 交期不符';
                         issueLog.push({
@@ -875,7 +963,15 @@
         function loadSettings() {
             const savedSettings = localStorage.getItem('settings');
             if (savedSettings) {
-                settings = JSON.parse(savedSettings);
+                const parsedSettings = JSON.parse(savedSettings);
+                // Merge loaded settings with default settings to ensure all properties exist
+                settings = {
+                    ...settings, // Start with default settings
+                    ...parsedSettings, // Override with saved settings
+                    // Ensure nested objects are also merged, not replaced
+                    clientColumnMap: { ...settings.clientColumnMap, ...(parsedSettings.clientColumnMap || {}) },
+                    internalColumnMap: { ...settings.internalColumnMap, ...(parsedSettings.internalColumnMap || {}) }
+                };
             }
         }
 
@@ -885,6 +981,20 @@
         function loadSettingsToUI() {
             document.getElementById('quantity-tolerance').value = settings.quantityTolerance;
             document.getElementById('delivery-date-tolerance').value = settings.deliveryDateTolerance;
+
+            // Load client column mappings
+            document.getElementById('map-client-customerPO').value = settings.clientColumnMap.customerPO;
+            document.getElementById('map-client-customerName').value = settings.clientColumnMap.customerName;
+            document.getElementById('map-client-productModel').value = settings.clientColumnMap.productModel;
+            document.getElementById('map-client-orderedQuantity').value = settings.clientColumnMap.orderedQuantity;
+            document.getElementById('map-client-expectedDeliveryDate').value = settings.clientColumnMap.expectedDeliveryDate;
+
+            // Load internal column mappings
+            document.getElementById('map-internal-internalOrderID').value = settings.internalColumnMap.internalOrderID;
+            document.getElementById('map-internal-customerPO').value = settings.internalColumnMap.customerPO;
+            document.getElementById('map-internal-internalProductCode').value = settings.internalColumnMap.internalProductCode;
+            document.getElementById('map-internal-confirmedQuantity').value = settings.internalColumnMap.confirmedQuantity;
+            document.getElementById('map-internal-committedDeliveryDate').value = settings.internalColumnMap.committedDeliveryDate;
         }
 
         /**
@@ -893,6 +1003,21 @@
         function saveSettings() {
             settings.quantityTolerance = parseInt(document.getElementById('quantity-tolerance').value);
             settings.deliveryDateTolerance = parseInt(document.getElementById('delivery-date-tolerance').value);
+
+            // Save client column mappings
+            settings.clientColumnMap.customerPO = document.getElementById('map-client-customerPO').value.trim();
+            settings.clientColumnMap.customerName = document.getElementById('map-client-customerName').value.trim();
+            settings.clientColumnMap.productModel = document.getElementById('map-client-productModel').value.trim();
+            settings.clientColumnMap.orderedQuantity = document.getElementById('map-client-orderedQuantity').value.trim();
+            settings.clientColumnMap.expectedDeliveryDate = document.getElementById('map-client-expectedDeliveryDate').value.trim();
+
+            // Save internal column mappings
+            settings.internalColumnMap.internalOrderID = document.getElementById('map-internal-internalOrderID').value.trim();
+            settings.internalColumnMap.customerPO = document.getElementById('map-internal-customerPO').value.trim();
+            settings.internalColumnMap.internalProductCode = document.getElementById('map-internal-internalProductCode').value.trim();
+            settings.internalColumnMap.confirmedQuantity = document.getElementById('map-internal-confirmedQuantity').value.trim();
+            settings.internalColumnMap.committedDeliveryDate = document.getElementById('map-internal-committedDeliveryDate').value.trim();
+
             localStorage.setItem('settings', JSON.stringify(settings));
             showMessageModal('設定已儲存', '您的設定已成功儲存。');
         }
