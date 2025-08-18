@@ -1,84 +1,269 @@
-import os
-import configparser
-import io
-import time
-from datetime import datetime
-from pathlib import Path
-from typing import Iterable
-import requests # 引入新的庫來獲取供應鏈數據
-import json
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>訂單與 PO 單核對效率提升工具</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light blue-gray background */
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 1.5rem;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+        .tab-button {
+            padding: 0.75rem 1.25rem;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.2s ease-in-out;
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+        .tab-button.active {
+            background-color: #e0f2fe; /* Light blue */
+            color: #0c4a6e; /* Darker blue */
+            border-color: #bfdbfe; /* Lighter blue border */
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+        .tab-button:not(.active):hover {
+            background-color: #f0f9ff; /* Even lighter blue on hover */
+            color: #1e40af; /* Blue on hover */
+        }
+        .table-container {
+            overflow-x: auto;
+            margin-top: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        th, td {
+            padding: 0.8rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        th {
+            background-color: #f8fafc; /* Lighter gray for headers */
+            font-weight: 600;
+            color: #475569; /* Darker gray for headers */
+            text-transform: uppercase;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        .discrepancy-row {
+            background-color: #fee2e2; /* Light red for discrepancies */
+            color: #dc2626; /* Dark red text */
+        }
+        .discrepancy-cell {
+            background-color: #fecaca; /* Lighter red for specific cells */
+            font-weight: 600;
+        }
+        .resolved-row {
+            background-color: #d1fae5; /* Light green for resolved issues */
+            color: #065f46; /* Dark green text */
+        }
+        .btn-primary {
+            background-color: #3b82f6; /* Blue */
+            color: white;
+            padding: 0.6rem 1.2rem;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: background-color 0.2s ease-in-out;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .btn-primary:hover {
+            background-color: #2563eb; /* Darker blue on hover */
+        }
+        .btn-secondary {
+            background-color: #e2e8f0; /* Light gray */
+            color: #475569; /* Dark gray */
+            padding: 0.6rem 1.2rem;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: background-color 0.2s ease-in-out;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        .btn-secondary:hover {
+            background-color: #cbd5e1; /* Darker gray on hover */
+        }
+        .alert-box {
+            background-color: #fffbeb; /* Light yellow */
+            border: 1px solid #fcd34d; /* Yellow border */
+            color: #b45309; /* Dark yellow text */
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+        }
+        .alert-box svg {
+            margin-right: 0.75rem;
+        }
+        .info-box {
+            background-color: #eff6ff; /* Light blue */
+            border: 1px solid #bfdbfe; /* Blue border */
+            color: #1e40af; /* Dark blue text */
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+        }
+        /* Modal Styles */
+        .modal {
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            width: 80%;
+            max-width: 600px;
+            animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .loading-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: #3b82f6;
+            margin-top: 1rem;
+        }
+        .loading-indicator svg {
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* New style for low inventory */
+        .low-inventory-cell {
+            background-color: #fce7f3; /* Light pink */
+            color: #be185d; /* Darker pink text */
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-3xl font-bold text-center mb-6 text-gray-800">訂單與 PO 單核對效率提升工具</h1>
 
-# Config Parser
-config = configparser.ConfigParser()
-config.read("config.ini")
+        <div class="alert-box">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <p class="text-sm">
+                此工具旨在模擬 Excel 在「整理客戶訂單、交貨 PO 單數字核對」方面的應用。它展示了如何透過自動化比對和視覺化標記，大幅提升核對效率並減少人工錯誤。
+            </p>
+        </div>
 
-# 假設你使用某個供應鏈管理平台的API
-# client = AzureOpenAI(...) # 保持不變，用於處理自然語言
+        <div class="flex space-x-4 mb-6 justify-center">
+            <button class="tab-button active" onclick="switchTab('client-orders-sheet')">客戶訂單模擬</button>
+            <button class="tab-button" onclick="switchTab('internal-orders-sheet')">內部訂單/出貨 PO 模擬</button>
+            <button class="tab-button" onclick="switchTab('reconciliation-hub-sheet')">訂單核對中心</button>
+            <button class="tab-button" onclick="switchTab('issue-log-sheet')">問題追蹤日誌</button>
+            <button class="tab-button" onclick="switchTab('settings-sheet')">設定</button>
+        </div>
 
-# 獲取供應商或物流狀態的假想函數
-def get_supplier_status(supplier_id: str) -> str:
-    # 這裡可以用requests庫來調用實際的供應商API
-    # 範例：requests.get(f"https://api.suppliers.com/status/{supplier_id}")
-    # 假設返回的是供應商的交貨狀態
-    mock_data = {
-        "SUPPLIER_A": "On-Time",
-        "SUPPLIER_B": "Delayed",
-        "SUPPLIER_C": "In-Transit",
-    }
-    return mock_data.get(supplier_id, "Unknown")
+        <!-- 客戶訂單模擬 Tab -->
+        <div id="client-orders-sheet" class="tab-content">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">客戶訂單模擬</h2>
+            <div class="info-box">
+                <p class="text-sm">
+                    此工作表模擬從客戶端收到的原始訂單數據。在實際工作中，這些數據可能來自客戶的採購訂單文件 (PO)。
+                    您也可以上傳 Excel 檔案來載入數據。
+                </p>
+                <input type="file" id="client-file-input" accept=".xlsx, .xls" class="mt-2 p-2 border rounded-md">
+                <button class="btn-secondary text-sm ml-2" onclick="loadClientDataFromFile()">載入客戶訂單</button>
+            </div>
+            <div class="table-container">
+                <table id="client-orders-table" class="min-w-full bg-white">
+                    <thead>
+                        <tr>
+                            <th>客戶 PO 編號</th>
+                            <th>客戶名稱</th>
+                            <th>產品型號 (客戶用)</th>
+                            <th>客戶訂購數量</th>
+                            <th>客戶期望交期</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Data will be inserted here by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
 
-# 獲取庫存水平的假想函數
-def get_inventory_level(item_sku: str) -> int:
-    # 這裡可以調用庫存管理系統的API
-    mock_data = {
-        "SKU_1001": 500,
-        "SKU_1002": 150,
-        "SKU_1003": 0,
-    }
-    return mock_data.get(item_sku, 0)
+        <!-- 內部訂單/出貨 PO 模擬 Tab -->
+        <div id="internal-orders-sheet" class="tab-content hidden">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">內部訂單/出貨 PO 模擬</h2>
+            <div class="info-box">
+                <p class="text-sm">
+                    此工作表模擬公司內部系統中記錄的已確認訂單或準備出貨的 PO 單數據。這些數據將用於與客戶訂單進行核對。
+                    您也可以上傳 Excel 檔案來載入數據。
+                </p>
+                <input type="file" id="internal-file-input" accept=".xlsx, .xls" class="mt-2 p-2 border rounded-md">
+                <button class="btn-secondary text-sm ml-2" onclick="loadInternalDataFromFile()">載入內部訂單</button>
+            </div>
+            <div class="table-container">
+                <table id="internal-orders-table" class="min-w-full bg-white">
+                    <thead>
+                        <tr>
+                            <th>內部訂單 ID</th>
+                            <th>客戶 PO 編號</th>
+                            <th>產品內部代碼</th>
+                            <th>內部確認數量</th>
+                            <th>承諾交期</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Data will be inserted here by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
 
-# Define the Assistant tools
-tools_list = [
-    {"type": "code_interpreter"},
-    {
-        "type": "function",
-        "function": {
-            "name": "get_supplier_status",
-            "description": "Retrieve the current status of a supplier's delivery.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "supplier_id": {
-                        "type": "string",
-                        "description": "The unique ID of the supplier",
-                    }
-                },
-                "required": ["supplier_id"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_inventory_level",
-            "description": "Retrieve the current inventory level of a specific item.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "item_sku": {
-                        "type": "string",
-                        "description": "The SKU of the item",
-                    }
-                },
-                "required": ["item_sku"],
-            },
-        },
-    },
-]
-
-# ... 程式碼其餘部分與你提供的程式碼類似 ...
-
-# process_message 函數的應用範例
-# user_input = "供應商 'SUPPLIER_A' 的交貨狀態是什麼？"
-# user_input = "SKU 'SKU_1003' 的庫存還有多少？"
-# process_message(user_input)
+        <!-- 訂單核對中心 Tab -->
+        <div id="reconciliation-hub-sheet" class="tab-content hidden">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">訂單核對中心</h2>
+            <div class="info-box">
