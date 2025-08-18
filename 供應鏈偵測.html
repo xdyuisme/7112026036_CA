@@ -1,0 +1,178 @@
+import React, { useState, useEffect } from 'react';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+
+// Assume these global variables are provided by the Canvas environment
+const __app_id = 'supply-chain-app';
+const __firebase_config = JSON.stringify({
+  apiKey: "AIzaSy...your-key",
+  authDomain: "your-project.firebaseapp.com",
+  projectId: "your-project",
+  storageBucket: "your-project.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "1:123456789:web:abcdefgh",
+});
+const __initial_auth_token = 'your-initial-auth-token';
+
+function App() {
+  const [db, setDb] = useState(null);
+  const [auth, setAuth] = useState(null);
+  const [userId, setUserId] = useState(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [supplyChainData, setSupplyChainData] = useState([]);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+
+  // Function to simulate fetching data from an online system like SAP via API
+  const mockFetchSAPData = async () => {
+    setIsLoading(true);
+    setMessages([{ role: 'assistant', content: '正在從線上系統獲取數據...' }]);
+    // Mock API call delay
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Mock data that would be returned from a SAP API endpoint
+    const mockData = [
+      { item_sku: 'SKU_1001', supplier_id: 'SUPPLIER_A', inventory_level: 500, delivery_status: 'On-Time' },
+      { item_sku: 'SKU_1002', supplier_id: 'SUPPLIER_B', inventory_level: 150, delivery_status: 'Delayed' },
+      { item_sku: 'SKU_1003', supplier_id: 'SUPPLIER_C', inventory_level: 0, delivery_status: 'In-Transit' },
+      { item_sku: 'SKU_1004', supplier_id: 'SUPPLIER_A', inventory_level: 320, delivery_status: 'On-Time' },
+      { item_sku: 'SKU_1005', supplier_id: 'SUPPLIER_B', inventory_level: 25, delivery_status: 'Delayed' },
+      { item_sku: 'SKU_1006', supplier_id: 'SUPPLIER_D', inventory_level: 10, delivery_status: 'On-Time' },
+    ];
+
+    setSupplyChainData(mockData);
+    setIsDataLoaded(true);
+    setIsLoading(false);
+    setMessages([{ role: 'assistant', content: `成功從線上系統載入 ${mockData.length} 筆供應鏈數據！現在你可以開始查詢了。` }]);
+  };
+
+  // Automatically load data on component mount
+  useEffect(() => {
+    mockFetchSAPData();
+  }, []);
+
+  // Function to get supplier status from dynamic data
+  const getSupplierStatus = (supplierId) => {
+    const result = supplyChainData.find(d => d.supplier_id === supplierId);
+    return result ? result.delivery_status : 'Supplier not found.';
+  };
+
+  // Function to get inventory level from dynamic data
+  const getInventoryLevel = (itemSku) => {
+    const result = supplyChainData.find(d => d.item_sku === itemSku);
+    return result ? parseInt(result.inventory_level, 10) : 0;
+  };
+
+  // Simulate AI assistant processing user input
+  const processMessage = async (userMessage) => {
+    setIsLoading(true);
+    let assistantResponse = '';
+
+    if (!isDataLoaded) {
+        assistantResponse = '數據尚未載入，請稍候。';
+    } else if (userMessage.includes('供應商') && userMessage.includes('狀態')) {
+      const match = userMessage.match(/['"]?SUPPLIER_([A-Z])['"]?/);
+      if (match) {
+        const supplierId = `SUPPLIER_${match[1]}`;
+        const status = getSupplierStatus(supplierId);
+        assistantResponse = `供應商 ${supplierId} 的交貨狀態是：${status}。`;
+      } else {
+        assistantResponse = '請提供有效的供應商 ID，例如："SUPPLIER_A"。';
+      }
+    } else if (userMessage.includes('庫存')) {
+      const match = userMessage.match(/['"]?SKU_(\d+)['"]?/);
+      if (match) {
+        const itemSku = `SKU_${match[1]}`;
+        const inventory = getInventoryLevel(itemSku);
+        assistantResponse = `商品 ${itemSku} 的庫存為：${inventory}。`;
+      } else {
+        assistantResponse = '請提供有效的 SKU，例如："SKU_1001"。';
+      }
+    } else if (userMessage.includes('清單')) {
+      if (supplyChainData.length === 0) {
+        assistantResponse = '目前沒有可用的供應鏈數據。';
+      } else {
+        const list = supplyChainData.map(d => (
+          `商品：${d.item_sku}，供應商：${d.supplier_id}，庫存：${d.inventory_level}，狀態：${d.delivery_status}`
+        )).join('\n');
+        assistantResponse = `這是目前的供應鏈數據清單：\n${list}`;
+      }
+    } else {
+      assistantResponse = '抱歉，我只支援查詢供應商狀態、庫存，或列出所有數據清單。';
+    }
+
+    setMessages(prevMessages => [...prevMessages, { role: 'user', content: userMessage }]);
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate delay
+    setMessages(prevMessages => [...prevMessages, { role: 'assistant', content: assistantResponse }]);
+    setIsLoading(false);
+  };
+
+  const handleSendMessage = (e) => {
+    e.preventDefault();
+    if (input.trim() === '' || isLoading) return;
+    processMessage(input);
+    setInput('');
+  };
+
+  return (
+    <div className="flex flex-col h-screen bg-gray-100 p-4 font-sans">
+      <div className="flex flex-row items-center justify-between mb-4">
+        <h1 className="text-3xl font-bold text-gray-800">智慧供應鏈助理</h1>
+        <button
+          onClick={mockFetchSAPData}
+          className="bg-green-500 text-white font-semibold py-2 px-4 rounded-full shadow-lg hover:bg-green-600 transition-colors disabled:opacity-50"
+          disabled={isLoading}
+        >
+          重新載入數據
+        </button>
+      </div>
+      
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 rounded-lg bg-white shadow-inner">
+        {!isDataLoaded && (
+          <div className="text-center text-gray-500 italic">
+            <p className="mb-2">應用程式正在自動載入數據...</p>
+          </div>
+        )}
+        {messages.map((msg, index) => (
+          <div
+            key={index}
+            className={`p-3 rounded-lg max-w-lg shadow-md ${
+              msg.role === 'user' ? 'bg-blue-500 text-white ml-auto' : 'bg-gray-200 text-gray-800 mr-auto'
+            }`}
+          >
+            <p className="font-semibold">{msg.role === 'user' ? '你' : '供應鏈助理'}</p>
+            <pre className="whitespace-pre-wrap font-sans text-sm">{msg.content}</pre>
+          </div>
+        ))}
+        {isLoading && (
+          <div className="p-3 rounded-lg max-w-lg shadow-md bg-gray-200 text-gray-800 mr-auto">
+            <p className="font-semibold">供應鏈助理</p>
+            <p className="text-gray-500 italic">思考中...</p>
+          </div>
+        )}
+      </div>
+
+      <form onSubmit={handleSendMessage} className="mt-4 flex space-x-2">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          className="flex-1 p-3 rounded-full border-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+          placeholder="輸入你的問題..."
+          disabled={!isDataLoaded || isLoading}
+        />
+        <button
+          type="submit"
+          className="p-3 bg-blue-500 text-white rounded-full shadow-lg hover:bg-blue-600 transition-colors disabled:opacity-50"
+          disabled={!isDataLoaded || isLoading}
+        >
+          傳送
+        </button>
+      </form>
+    </div>
+  );
+}
+
+export default App;
